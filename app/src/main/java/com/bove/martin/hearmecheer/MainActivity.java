@@ -1,63 +1,82 @@
 package com.bove.martin.hearmecheer;
 
+import android.Manifest;
+import android.content.pm.PackageManager;
+import android.os.Bundle;
+import android.util.Log;
+import android.webkit.PermissionRequest;
+import android.webkit.WebChromeClient;
+import android.webkit.WebView;
+
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
-import android.Manifest;
-import android.annotation.TargetApi;
-import android.content.pm.PackageManager;
-import android.graphics.Bitmap;
-import android.os.Bundle;
-import android.view.View;
-import android.webkit.WebChromeClient;
-import android.webkit.WebResourceError;
-import android.webkit.WebResourceRequest;
-import android.webkit.WebView;
-import android.webkit.WebViewClient;
-import android.widget.Toast;
-
 public class MainActivity extends AppCompatActivity {
     WebView webView;
-
+    private PermissionRequest myRequest;
+    private static final int MY_PERMISSIONS_REQUEST_RECORD_AUDIO = 101;
+    String serviceURL = "https://ttpsrts.blob.core.windows.net/embed/hearmecheer/index.html";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        int permission;
-        permission = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO);
-
-        if (permission != PackageManager.PERMISSION_GRANTED) {
-            if (ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.RECORD_AUDIO)) {
-            } else {
-                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.RECORD_AUDIO}, 13);
-            }
-        }
-
         webView = this.findViewById(R.id.webView);
         webView.getSettings().setJavaScriptEnabled(true);
         webView.getSettings().setDomStorageEnabled(true);
-        webView.getSettings().setMediaPlaybackRequiresUserGesture(false);
-        webView.setWebChromeClient(new WebChromeClient());
 
-        webView.setWebViewClient(new WebViewClient() {
-            @SuppressWarnings("deprecation")
-            @Override
-            public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
-                Toast.makeText(getBaseContext(), description, Toast.LENGTH_SHORT).show();
-            }
-            @TargetApi(android.os.Build.VERSION_CODES.M)
-            @Override
-            public void onReceivedError(WebView view, WebResourceRequest req, WebResourceError rerr) {
-                onReceivedError(view, rerr.getErrorCode(), rerr.getDescription().toString(), req.getUrl().toString());
-            }
-            public void onPageStarted(WebView view, String url, Bitmap favicon) {
+        webView.setWebChromeClient(new WebChromeClient() {
+               @Override
+               public void onPermissionRequest(final PermissionRequest request) {
+                   myRequest = request;
 
-            }
-        });
+                   for (String permission : request.getResources()) {
+                       switch (permission) {
+                           case "android.webkit.resource.AUDIO_CAPTURE": {
+                               askForPermission(request.getOrigin().toString(), Manifest.permission.RECORD_AUDIO, MY_PERMISSIONS_REQUEST_RECORD_AUDIO);
+                               break;
+                           }
+                       }
+                   }
+               }
+           });
 
-        webView.loadUrl("https://ttpsrts.blob.core.windows.net/embed/hearmecheer/index.html");
+         webView.loadUrl(serviceURL);
     }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String permissions[], int[] grantResults) {
+
+        switch (requestCode) {
+            case MY_PERMISSIONS_REQUEST_RECORD_AUDIO: {
+                Log.d("CHEER", "PERMISSION FOR AUDIO");
+                if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+
+                    myRequest.grant(myRequest.getResources());
+                    webView.loadUrl(serviceURL);
+                }
+            }
+        }
+    }
+
+
+    public void askForPermission(String origin, String permission, int requestCode) {
+        Log.d("CHEER", "inside askForPermission for" + origin + "with" + permission);
+
+        if (ContextCompat.checkSelfPermission(getApplicationContext(), permission) != PackageManager.PERMISSION_GRANTED) {
+
+            if (ActivityCompat.shouldShowRequestPermissionRationale(MainActivity.this, permission)) {
+                // Show an expanation to the user *asynchronously* -- don't block
+                // this thread waiting for the user's response! After the user
+                // sees the explanation, try again to request the permission.
+            } else {
+                ActivityCompat.requestPermissions(MainActivity.this, new String[]{permission}, requestCode);
+            }
+        } else {
+            myRequest.grant(myRequest.getResources());
+        }
+    }
+
 }
